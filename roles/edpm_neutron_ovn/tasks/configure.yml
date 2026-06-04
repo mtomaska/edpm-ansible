@@ -68,3 +68,15 @@
       # set when BGP is enabled, so it is used as the gate for this task.
       when: edpm_neutron_ovn_agent_bgp_peer_bridges != ''
       changed_when: true
+
+    - name: Set neutron-bgp-evpn external-ids in OVS
+      become: true
+      ansible.builtin.command:
+        cmd: >-
+          ovs-vsctl --no-wait -- set Open_vSwitch .
+          external-ids:ovn-evpn-vxlan-port={{ edpm_neutron_ovn_agent_evpn_ovn_evpn_vxlan_port }}
+          external-ids:ovn-evpn-local-ip={{ edpm_neutron_ovn_agent_evpn_ovn_evpn_local_ip }}
+      when:
+        - edpm_neutron_ovn_agent_evpn_ovn_evpn_vxlan_port != ''
+        - edpm_neutron_ovn_agent_evpn_ovn_evpn_local_ip != ''
+      changed_when: true
