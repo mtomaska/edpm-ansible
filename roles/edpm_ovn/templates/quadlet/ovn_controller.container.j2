@@ -43,6 +43,7 @@ Label=managed_by=edpm_ansible
 Restart=always
 TimeoutStartSec=900
 TimeoutStopSec=84
+ExecStop=-/usr/bin/podman exec ovn_controller ovs-appctl -t ovn-controller exit --restart
 ExecReload=/usr/bin/podman kill --signal HUP ovn_controller
 
 [Install]
