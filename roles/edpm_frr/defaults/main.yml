@@ -96,3 +96,6 @@ edpm_frr_images_download_retries: "{{ edpm_download_retries | default(5) }}"
 edpm_frr_ovn_vrf_advertise: ''
 edpm_frr_ovn_vrf_learn: ''
 edpm_frr_conf_custom_router_bgp_ovn: ''
+
+# BindsTo systemd relationship with OVN controller
+edpm_frr_ovn_bind: false

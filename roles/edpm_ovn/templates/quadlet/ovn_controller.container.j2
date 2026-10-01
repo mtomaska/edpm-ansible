@@ -19,6 +19,9 @@
 Description=OVN Controller container (EDPM)
 After=openvswitch.service
 Requires=openvswitch.service
+{% if edpm_frr_ovn_bind | default(false) -%}
+BindsTo=edpm_frr.service
+{% endif -%}
 
 [Container]
 ContainerName=ovn_controller

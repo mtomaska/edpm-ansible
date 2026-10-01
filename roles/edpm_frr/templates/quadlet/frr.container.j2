@@ -9,6 +9,9 @@
 Description=FRR container (EDPM)
 After=edpm_frr_init.service
 Requires=edpm_frr_init.service
+{% if edpm_frr_ovn_bind | default(false) -%}
+BindsTo=edpm_ovn_controller.service
+{% endif -%}
 
 [Container]
 ContainerName=frr

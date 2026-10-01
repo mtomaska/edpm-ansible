@@ -123,6 +123,12 @@
           - "'ovn_controller' in _state_data.services.ovn.containers"
         fail_msg: "OVN service not tracked in state file"
 
+- name: Verify BindsTo is not set by default
+  ansible.builtin.assert:
+    that:
+      - "'BindsTo=edpm_frr.service' not in _quadlet_text"
+    fail_msg: "BindsTo directive should not be present when edpm_frr_ovn_bind is false"
+
 - name: Check ovn_controller container exists
   become: true
   ansible.builtin.command: podman container exists ovn_controller
