@@ -46,3 +46,88 @@
       ovn_controller: "{{ lookup('template', 'container_defs/ovn_controller.yaml.j2') | from_yaml }}"
     edpm_container_standalone_kolla_config_files:
       ovn_controller: "{{ lookup('template', 'kolla_config/kolla_ovn_controller.yaml.j2') | from_yaml }}"
+
+- name: Manage FRR-OVN BindsTo relationship via systemd drop-ins
+  become: true
+  when: edpm_frr_ovn_bind | default(false)
+  block:
+    - name: Check if FRR service is known to systemd
+      ansible.builtin.command: systemctl show edpm_frr.service --property=LoadState --value
+      register: _frr_service_check
+      changed_when: false
+
+    - name: Create BindsTo drop-ins when both services are deployed
+      when: _frr_service_check.stdout != 'not-found'
+      block:
+        - name: Create FRR service drop-in directory
+          ansible.builtin.file:
+            path: /etc/systemd/system/edpm_frr.service.d
+            state: directory
+            mode: "0755"
+
+        - name: Create FRR BindsTo OVN drop-in
+          ansible.builtin.copy:
+            dest: /etc/systemd/system/edpm_frr.service.d/ovn-bind.conf
+            mode: "0644"
+            content: |
+              [Unit]
+              BindsTo=edpm_ovn_controller.service
+
+        - name: Create OVN controller service drop-in directory
+          ansible.builtin.file:
+            path: /etc/systemd/system/edpm_ovn_controller.service.d
+            state: directory
+            mode: "0755"
+
+        - name: Create OVN BindsTo FRR drop-in
+          ansible.builtin.copy:
+            dest: /etc/systemd/system/edpm_ovn_controller.service.d/frr-bind.conf
+            mode: "0644"
+            content: |
+              [Unit]
+              BindsTo=edpm_frr.service
+
+        - name: Reload systemd to activate BindsTo drop-ins
+          ansible.builtin.systemd:
+            daemon_reload: true
+
+    - name: Remove stale BindsTo drop-ins when peer is absent
+      when: _frr_service_check.stdout == 'not-found'
+      block:
+        - name: Remove FRR BindsTo drop-in (peer absent)
+          ansible.builtin.file:
+            path: /etc/systemd/system/edpm_frr.service.d/ovn-bind.conf
+            state: absent
+          register: _frr_dropin_removed
+
+        - name: Remove OVN BindsTo drop-in (peer absent)
+          ansible.builtin.file:
+            path: /etc/systemd/system/edpm_ovn_controller.service.d/frr-bind.conf
+            state: absent
+          register: _ovn_dropin_removed
+
+        - name: Reload systemd after removing stale drop-ins
+          ansible.builtin.systemd:
+            daemon_reload: true
+          when: _frr_dropin_removed.changed or _ovn_dropin_removed.changed
+
+- name: Remove FRR-OVN BindsTo drop-ins when disabled
+  become: true
+  when: not (edpm_frr_ovn_bind | default(false))
+  block:
+    - name: Remove FRR BindsTo drop-in
+      ansible.builtin.file:
+        path: /etc/systemd/system/edpm_frr.service.d/ovn-bind.conf
+        state: absent
+      register: _frr_dropin_removed
+
+    - name: Remove OVN BindsTo drop-in
+      ansible.builtin.file:
+        path: /etc/systemd/system/edpm_ovn_controller.service.d/frr-bind.conf
+        state: absent
+      register: _ovn_dropin_removed
+
+    - name: Reload systemd after removing drop-ins
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: _frr_dropin_removed.changed or _ovn_dropin_removed.changed
