@@ -119,6 +119,71 @@
       loop:
         - "frr"
 
+    - name: Verify FRR configuration persists across a container restart
+      become: true
+      block:
+        - name: Read Kolla configuration
+          ansible.builtin.slurp:
+            src: /var/lib/kolla/config_files/frr.json
+          register: frr_kolla_config
+
+        - name: Verify Kolla does not copy FRR configuration
+          ansible.builtin.assert:
+            that:
+              - "'config_files' not in (frr_kolla_config.content | b64decode | from_json)"
+
+        - name: Save the original FRR configuration
+          ansible.builtin.slurp:
+            src: /var/lib/openstack/frr/etc/frr/frr.conf
+          register: frr_original_config
+          no_log: true
+
+        - name: Replace the configuration as the FRR user
+          ansible.builtin.command:
+            argv:
+              - podman
+              - exec
+              - --user
+              - frr
+              - frr
+              - /bin/sh
+              - -c
+              - >-
+                cp /etc/frr/frr.conf /etc/frr/frr.conf.persistence-test &&
+                printf '\n! edpm-frr-persistence-test\n' >> /etc/frr/frr.conf.persistence-test &&
+                mv /etc/frr/frr.conf.persistence-test /etc/frr/frr.conf
+          changed_when: true
+
+        - name: Restart FRR container
+          ansible.builtin.command: podman restart frr
+          changed_when: true
+
+        - name: Read persisted configuration on the host
+          ansible.builtin.slurp:
+            src: /var/lib/openstack/frr/etc/frr/frr.conf
+          register: frr_host_config
+          no_log: true
+
+        - name: Read persisted configuration in the container
+          ansible.builtin.command: podman exec --user frr frr cat /etc/frr/frr.conf
+          register: frr_container_config
+          changed_when: false
+          no_log: true
+
+        - name: Assert the runtime change survived the restart
+          ansible.builtin.assert:
+            that:
+              - "'! edpm-frr-persistence-test' in (frr_host_config.content | b64decode)"
+              - "'! edpm-frr-persistence-test' in frr_container_config.stdout"
+      always:
+        - name: Restore the original FRR configuration
+          ansible.builtin.copy:
+            content: "{{ frr_original_config.content | b64decode }}"
+            dest: /var/lib/openstack/frr/etc/frr/frr.conf
+            mode: '0644'
+          when: frr_original_config.content is defined
+          no_log: true
+
     - name: ensure systemd services are defined and functional
       ansible.builtin.include_tasks: "{{test_helper_dir}}/verify_systemd_unit.yaml"
       loop:

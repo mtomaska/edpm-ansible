@@ -59,6 +59,7 @@
       - "system"
 
 - name: Configure FRR
+  become: true
   ansible.builtin.template:
     src: config/frr.conf.j2
     dest: "{{ edpm_frr_config_basedir }}/etc/frr/frr.conf"
@@ -68,6 +69,7 @@
   register: _frr_config_result
 
 - name: Configure FRR daemons
+  become: true
   ansible.builtin.template:
     src: config/daemons.j2
     dest: "{{ edpm_frr_config_basedir }}/etc/frr/daemons"
