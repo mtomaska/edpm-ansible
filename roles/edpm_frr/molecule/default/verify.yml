@@ -184,6 +184,100 @@
           when: frr_original_config.content is defined
           no_log: true
 
+    - name: Verify FRR configuration deployment behavior
+      become: true
+      block:
+        - name: Create an isolated configuration directory
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: edpm-frr-config-test-
+          register: frr_test_dir
+
+        - name: Create the FRR configuration directory
+          ansible.builtin.file:
+            path: "{{ frr_test_dir.path }}/etc/frr"
+            state: directory
+            mode: '0755'
+
+        - name: Create the initial FRR configuration
+          ansible.builtin.include_role:
+            name: osp.edpm.edpm_frr
+            tasks_from: configure.yml
+          vars:
+            edpm_frr_config_basedir: "{{ frr_test_dir.path }}"
+            edpm_frr_bgp_peers: ['10.64.0.1']
+
+        - name: Assert the initial configuration was created
+          ansible.builtin.assert:
+            that:
+              - _frr_config_result is changed
+
+        - name: Add a runtime change to the configuration
+          ansible.builtin.lineinfile:
+            path: "{{ frr_test_dir.path }}/etc/frr/frr.conf"
+            line: '! edpm-frr-runtime-change'
+
+        - name: Reconfigure FRR with the default overwrite setting
+          ansible.builtin.include_role:
+            name: osp.edpm.edpm_frr
+            tasks_from: configure.yml
+          vars:
+            edpm_frr_config_basedir: "{{ frr_test_dir.path }}"
+            edpm_frr_bgp_peers: ['10.64.0.1']
+
+        - name: Read the preserved configuration
+          ansible.builtin.slurp:
+            src: "{{ frr_test_dir.path }}/etc/frr/frr.conf"
+          register: frr_preserved_config
+          no_log: true
+
+        - name: Assert the runtime change was preserved
+          ansible.builtin.assert:
+            that:
+              - _frr_config_result is not changed
+              - "'! edpm-frr-runtime-change' in (frr_preserved_config.content | b64decode)"
+
+        - name: Reconfigure FRR with overwrite enabled
+          ansible.builtin.include_role:
+            name: osp.edpm.edpm_frr
+            tasks_from: configure.yml
+          vars:
+            edpm_frr_config_basedir: "{{ frr_test_dir.path }}"
+            edpm_frr_bgp_peers: ['10.64.0.1']
+            edpm_frr_overwrite_config: true
+
+        - name: Read the overwritten configuration
+          ansible.builtin.slurp:
+            src: "{{ frr_test_dir.path }}/etc/frr/frr.conf"
+          register: frr_overwritten_config
+          no_log: true
+
+        - name: Assert the runtime change was replaced
+          ansible.builtin.assert:
+            that:
+              - _frr_config_result is changed
+              - "'! edpm-frr-runtime-change' not in (frr_overwritten_config.content | b64decode)"
+
+        - name: Reconfigure FRR again with overwrite enabled
+          ansible.builtin.include_role:
+            name: osp.edpm.edpm_frr
+            tasks_from: configure.yml
+          vars:
+            edpm_frr_config_basedir: "{{ frr_test_dir.path }}"
+            edpm_frr_bgp_peers: ['10.64.0.1']
+            edpm_frr_overwrite_config: true
+
+        - name: Assert an unchanged configuration is idempotent
+          ansible.builtin.assert:
+            that:
+              - _frr_config_result is not changed
+      always:
+        - name: Remove the isolated configuration directory
+          ansible.builtin.file:
+            path: "{{ frr_test_dir.path }}"
+            state: absent
+          when: frr_test_dir.path is defined
+
     - name: ensure systemd services are defined and functional
       ansible.builtin.include_tasks: "{{test_helper_dir}}/verify_systemd_unit.yaml"
       loop:

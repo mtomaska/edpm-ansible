@@ -170,6 +170,10 @@ argument_specs:
         default: 3
         description: ''
         type: int
+      edpm_frr_overwrite_config:
+        default: false
+        description: Overwrite an existing FRR configuration with the role template.
+        type: bool
       edpm_frr_ovn_vrf_advertise:
         default: ''
         description: VRF name for OVN-BGP extension, used to advertise BGP routes to workload IP addresses

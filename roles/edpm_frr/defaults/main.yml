@@ -59,6 +59,7 @@ edpm_frr_defaults: traditional
 edpm_frr_hostname: "{{ ansible_facts['hostname'] | default('') }}"
 edpm_frr_log_level: informational
 edpm_frr_log_timestamp_precision: 3
+edpm_frr_overwrite_config: false
 edpm_frr_version: 7.0
 edpm_frr_watchfrr: true
 edpm_frr_watchfrr_options: ''
